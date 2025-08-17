@@ -33,3 +33,4 @@ compose.yaml
 .serena
 .env
 CLAUDE.md
+ssl/*

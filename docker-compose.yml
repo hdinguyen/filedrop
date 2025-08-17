@@ -1,4 +1,5 @@
-version: '3'
+version: '3.8'
+
 services:
   filedrop:
     build:
@@ -8,29 +9,49 @@ services:
         - VITE_APP_NAME=${APP_NAME}
     environment:
       - WS_HOST=0.0.0.0
+      - WS_PORT=5000
       - WS_APP_NAME=${APP_NAME}
       - WS_ABUSE_EMAIL=${ABUSE_EMAIL}
       - WS_USE_X_FORWARDED_FOR=${USE_X_FORWARDED_FOR}
       - WS_REQUIRE_CRYPTO=${REQUIRE_CRYPTO}
       - TURN_MODE=hmac
-      - TURN_SERVER=turn:(hostname)
+      - TURN_SERVER=turn:${DOMAIN}:3478
       - TURN_USERNAME=filedrop
       - TURN_SECRET=${TURN_SECRET}
     ports:
       - '${PORT}:5000'
+    restart: unless-stopped
+    volumes:
+      - ./ssl:/app/ssl:ro
+    networks:
+      - filedrop-network
 
   coturn:
-    image: coturn/coturn
+    image: coturn/coturn:latest
     command:
       - --log-file=stdout
+      - --verbose
       - --use-auth-secret
       - --static-auth-secret=${TURN_SECRET}
+      - --realm=${DOMAIN}
       - --no-multicast-peers
+      - --no-cli
       - --no-tls
       - --no-dtls
-      - --no-software-attribute
+      - --listening-port=3478
+      - --alt-listening-port=3479
+      - --min-port=50000
+      - --max-port=50099
       - --fingerprint
-      - --no-cli
-    network_mode: host
-    depends_on:
-      - filedrop
+      - --external-ip=121.7.102.81
+    ports:
+      - "3478:3478/udp"
+      - "3479:3479/udp"
+      - "50000-50099:50000-50099/udp"
+    restart: unless-stopped
+    networks:
+      - filedrop-network
+
+networks:
+  filedrop-network:
+    driver: bridge
