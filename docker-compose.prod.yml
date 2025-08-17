@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  filedrop:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        - VITE_APP_NAME=${APP_NAME}
+    environment:
+      - WS_HOST=0.0.0.0
+      - WS_PORT=5000
+      - WS_APP_NAME=${APP_NAME}
+      - WS_ABUSE_EMAIL=${ABUSE_EMAIL}
+      - WS_USE_X_FORWARDED_FOR=${USE_X_FORWARDED_FOR}
+      - WS_REQUIRE_CRYPTO=${REQUIRE_CRYPTO}
+      - TURN_MODE=hmac
+      - TURN_SERVER=turn:${DOMAIN}:3478
+      - TURN_USERNAME=filedrop
+      - TURN_SECRET=${TURN_SECRET}
+    ports:
+      - '${PORT}:5000'
+    restart: unless-stopped
+    volumes:
+      - ./ssl:/app/ssl:ro
+    networks:
+      - filedrop-network
+
+  coturn:
+    image: coturn/coturn:latest
+    command:
+      - --log-file=stdout
+      - --verbose
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --realm=${DOMAIN}
+      - --no-multicast-peers
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --listening-port=3478
+      - --alt-listening-port=3479
+      - --min-port=49152
+      - --max-port=65535
+      - --fingerprint
+      - --external-ip=$$(detect-external-ip)
+    ports:
+      - "3478:3478/udp"
+      - "3479:3479/udp"
+      - "49152-65535:49152-65535/udp"
+    restart: unless-stopped
+    networks:
+      - filedrop-network
+
+networks:
+  filedrop-network:
+    driver: bridge

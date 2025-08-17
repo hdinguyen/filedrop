@@ -29,3 +29,7 @@ compose.yaml
 .pnp.cjs
 .pnp.loader.mjs
 .yarn
+
+.serena
+.env
+CLAUDE.md
