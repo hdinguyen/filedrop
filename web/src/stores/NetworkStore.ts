@@ -7,6 +7,7 @@ import {
   NetworkModel,
   NetworkNameMessageModel,
   TransferMessageModel,
+  RoomAccessMessageModel,
 } from '@filedrop/types';
 import { makeAutoObservable, runInAction } from 'mobx';
 import { canvas } from 'imtool';
@@ -18,6 +19,7 @@ import { Transfer, TransferSettings } from './Transfer.js';
 import { defaultAppName } from '../config.js';
 import { replaceUrlParameters } from '../utils/url.js';
 import { getItem, setItem } from '../utils/storage.js';
+import { notificationManager } from '../utils/notifications.js';
 import { settingsStore } from './SettingsStore.js';
 
 export class NetworkStore {
@@ -32,6 +34,8 @@ export class NetworkStore {
 
   networkClients: Map<string, ClientModel> = new Map();
   transfers: Map<string, Transfer> = new Map();
+  pendingRoomAccess: string | null = null;
+  roomAccessError: string | null = null;
 
   constructor(private connection: Connection) {
     makeAutoObservable(this);
@@ -115,6 +119,24 @@ export class NetworkStore {
 
     this.networkName = networkName;
     this.connection.send(message);
+  }
+
+  submitRoomAccessCode(accessCode: string) {
+    if (!this.pendingRoomAccess) return;
+
+    const message: RoomAccessMessageModel = {
+      type: MessageType.ROOM_ACCESS,
+      networkName: this.pendingRoomAccess,
+      accessCode,
+    };
+
+    this.roomAccessError = null;
+    this.connection.send(message);
+  }
+
+  clearRoomAccess() {
+    this.pendingRoomAccess = null;
+    this.roomAccessError = null;
   }
 
   async createTransfer(file: File, targetId: string) {
@@ -247,6 +269,13 @@ export class NetworkStore {
           });
 
           this.transfers.set(transfer.transferId, transfer);
+          
+          // Show notification for incoming file transfer
+          const senderClient = this.connection.clients.find(c => c.clientId === message.clientId) ||
+                              this.connection.clientCache.get(message.clientId!);
+          const senderName = senderClient?.clientName || 'Unknown';
+          notificationManager.showFileNotification(senderName, message.fileName, false);
+          
           if (settingsStore.settings.autoAccept) {
             transfer.accept();
           }
@@ -267,6 +296,19 @@ export class NetworkStore {
         break;
       case MessageType.RTC_CANDIDATE:
         this.transfers.get(message.transferId)?.addIceCandidate(message.data);
+        break;
+      case MessageType.ROOM_ACCESS:
+        if (message.isProtected && !message.granted) {
+          // Room is protected, show access code modal
+          this.pendingRoomAccess = message.networkName;
+          this.roomAccessError = null;
+        } else if (message.isProtected && message.granted) {
+          // Access granted, clear state
+          this.clearRoomAccess();
+        } else if (message.isProtected && message.granted === false) {
+          // Access denied
+          this.roomAccessError = 'Invalid access code. Please try again.';
+        }
         break;
     }
   }

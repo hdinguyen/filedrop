@@ -13,6 +13,7 @@ import {
   DeviceType,
   InitializeMessageModel,
   ChatMessageModel,
+  RoomAccessMessageModel,
 } from '@filedrop/types';
 
 const messageModelSchema = Joi.object({
@@ -145,4 +146,18 @@ export function isEncryptedMessageModel(
   message: MessageModel | EncryptedMessageModel
 ): message is EncryptedMessageModel {
   return !encryptedMessageModelSchema.validate(message).error;
+}
+
+const roomAccessMessageModelSchema = Joi.object({
+  type: Joi.string().equal(MessageType.ROOM_ACCESS).required(),
+  networkName: Joi.string().min(1).max(32).required(),
+  accessCode: Joi.string().min(4).max(32),
+  isProtected: Joi.boolean(),
+  granted: Joi.boolean(),
+}).required();
+
+export function isRoomAccessMessageModel(
+  message: MessageModel | RoomAccessMessageModel
+): message is RoomAccessMessageModel {
+  return !roomAccessMessageModelSchema.validate(message).error;
 }

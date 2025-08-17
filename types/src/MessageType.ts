@@ -15,6 +15,7 @@ export enum MessageType {
   RTC_DESCRIPTION = 'rtcDescription',
   RTC_CANDIDATE = 'rtcCandidate',
   ENCRYPTED = 'encrypted',
+  ROOM_ACCESS = 'roomAccess',
 }
 
 export enum ActionMessageActionType {

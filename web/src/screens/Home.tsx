@@ -17,6 +17,8 @@ import { TransfersSection } from '../sections/Transfers/index.js';
 import { ChatSection } from '../sections/Chat/index.js';
 import { MobileTabs } from '../sections/MobileTabs/index.js';
 import { SettingsSection } from '../sections/Settings/index.js';
+import { NotificationPermission } from '../components/NotificationPermission.js';
+import { RoomAccessModal } from '../components/RoomAccessModal.js';
 
 const ConnectSection = React.lazy(() => import('../sections/Connect/index.js'));
 
@@ -108,6 +110,13 @@ export const Home: React.FC = observer(() => {
         files={clipboardFiles}
         dismissClipboard={dismissClipboard}
       />
+      <RoomAccessModal
+        isOpen={!!networkStore.pendingRoomAccess}
+        networkName={networkStore.pendingRoomAccess || ''}
+        onClose={() => networkStore.clearRoomAccess()}
+        onSubmit={(accessCode) => networkStore.submitRoomAccessCode(accessCode)}
+        error={networkStore.roomAccessError || undefined}
+      />
       <Modal
         onClose={() => applicationStore.closeModal()}
         title={t('tabs.settings')}
@@ -126,6 +135,7 @@ export const Home: React.FC = observer(() => {
         <div className={clsx({ mobileHidden: tab !== 'transfers' })}>
           <IncompatibleBrowserSection />
           <NoticeSection />
+          <NotificationPermission />
           <YourTileSection />
           <NetworkSection />
           <TransfersSection />

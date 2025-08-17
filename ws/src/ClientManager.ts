@@ -11,6 +11,7 @@ import {
   NetworkModel,
   DisconnectedMessageModel,
   ErrorMessageModel,
+  RoomAccessMessageModel,
 } from '@filedrop/types';
 
 import { Client } from './types/Client.js';
@@ -25,6 +26,7 @@ import {
   isEncryptedMessageModel,
   isInitializeMessageModel,
   isChatMessageModel,
+  isRoomAccessMessageModel,
 } from './utils/validation.js';
 import {
   abuseEmail,
@@ -36,9 +38,11 @@ import {
   requireCrypto,
 } from './config.js';
 import { secretToId } from './utils/id.js';
+import { RoomManager } from './RoomManager.js';
 
 export class ClientManager {
   private clients = new Set<Client>();
+  private roomManager = new RoomManager();
 
   constructor() {
     this.sendNetworkMessage = this.sendNetworkMessage.bind(this);
@@ -100,8 +104,20 @@ export class ClientManager {
 
     if (isNetworkNameMessageModel(message)) {
       const name = message.networkName.toUpperCase();
-      const count = this.getNetworkClients(name).length;
+      
+      // Check if room is protected
+      if (this.roomManager.isRoomProtected(name)) {
+        const accessResponse: RoomAccessMessageModel = {
+          type: MessageType.ROOM_ACCESS,
+          networkName: name,
+          isProtected: true,
+          granted: false,
+        };
+        client.send(accessResponse);
+        return;
+      }
 
+      const count = this.getNetworkClients(name).length;
       if (count >= maxNetworkClients) {
         this.sendError(client, 'network', 'networkFull');
         return;
@@ -120,6 +136,38 @@ export class ClientManager {
         if (client.networkName) {
           this.setNetworkName(client, client.networkName);
         }
+      }
+    } else if (isRoomAccessMessageModel(message)) {
+      // Handle room access request
+      const name = message.networkName.toUpperCase();
+      
+      if (message.accessCode && this.roomManager.validateAccessCode(name, message.accessCode)) {
+        // Access granted
+        const accessResponse: RoomAccessMessageModel = {
+          type: MessageType.ROOM_ACCESS,
+          networkName: name,
+          isProtected: true,
+          granted: true,
+        };
+        client.send(accessResponse);
+        
+        // Now allow them to join the room
+        const count = this.getNetworkClients(name).length;
+        if (count >= maxNetworkClients) {
+          this.sendError(client, 'network', 'networkFull');
+          return;
+        }
+        
+        this.setNetworkName(client, name);
+      } else {
+        // Access denied
+        const accessResponse: RoomAccessMessageModel = {
+          type: MessageType.ROOM_ACCESS,
+          networkName: name,
+          isProtected: true,
+          granted: false,
+        };
+        client.send(accessResponse);
       }
     } else if (requireCrypto && !isEncryptedMessageModel(message)) {
       // Ignore unencrypted messages when running with required E2E crypto.
@@ -325,5 +373,22 @@ export class ClientManager {
         client.close();
       }
     });
+  }
+
+  // Room management methods
+  createProtectedRoom(networkName: string, accessCode: string) {
+    return this.roomManager.createProtectedRoom(networkName, accessCode);
+  }
+
+  isRoomProtected(networkName: string): boolean {
+    return this.roomManager.isRoomProtected(networkName);
+  }
+
+  removeProtectedRoom(networkName: string): boolean {
+    return this.roomManager.removeProtectedRoom(networkName);
+  }
+
+  getProtectedRooms() {
+    return this.roomManager.getProtectedRooms();
   }
 }

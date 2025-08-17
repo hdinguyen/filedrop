@@ -131,6 +131,14 @@ export interface EncryptedMessageModel extends TargetedMessageModel {
   clientId?: string;
 }
 
+export interface RoomAccessMessageModel extends MessageModel {
+  type: MessageType.ROOM_ACCESS;
+  networkName: string;
+  accessCode?: string;
+  isProtected?: boolean;
+  granted?: boolean;
+}
+
 export type Message =
   | InitializeMessageModel
   | DisconnectedMessageModel
@@ -147,4 +155,5 @@ export type Message =
   | RTCDescriptionMessageModel
   | RTCCandidateMessageModel
   | ChatMessageModel
+  | RoomAccessMessageModel
   | EncryptedMessageModel;

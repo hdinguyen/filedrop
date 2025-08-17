@@ -10,6 +10,7 @@ import { nanoid } from 'nanoid';
 import type { Connection } from './Connection.js';
 import { ChatItemModel } from '../types/Models.js';
 import { t } from 'i18not';
+import { notificationManager } from '../utils/notifications.js';
 
 interface ChatChannel {
   channel: string;
@@ -101,7 +102,7 @@ export class ChatStore {
     return this.visible || window.matchMedia('(min-width: 768px)').matches;
   }
 
-  private pushMessage(channel: string, senderId: string, message: string) {
+  private pushMessage(channel: string, senderId: string, message: string, showNotification = false) {
     if (!this.channelItems.has(channel)) {
       this.channelItems.set(channel, []);
     }
@@ -114,8 +115,19 @@ export class ChatStore {
       message,
     });
 
-    if (!this.getVisible() || channel !== this.currentChannel) {
+    const isNotVisible = !this.getVisible() || channel !== this.currentChannel;
+    if (isNotVisible) {
       this.unreadCount.set(channel, (this.unreadCount.get(channel) || 0) + 1);
+    }
+
+    // Show notification for incoming messages (not sent by current user)
+    if (showNotification && senderId !== this.connection.clientId && isNotVisible) {
+      const senderClient = this.connection.clients.find(c => c.clientId === senderId) ||
+                          this.connection.clientCache.get(senderId);
+      const senderName = senderClient?.clientName || 'Unknown';
+      const isGlobal = channel === 'global';
+      
+      notificationManager.showMessageNotification(senderName, message, isGlobal);
     }
   }
 
@@ -152,7 +164,8 @@ export class ChatStore {
         this.pushMessage(
           message.direct ? message.clientId! : 'global',
           message.clientId!,
-          message.message
+          message.message,
+          true // Show notification for incoming messages
         );
         break;
     }
